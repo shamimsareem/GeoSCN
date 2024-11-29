@@ -7,6 +7,28 @@ import blocks
 import lib.utils as utils
 from lib.config import cfg
 from models.basic_model import BasicModel
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+
+class SelfAttention(nn.Module):
+    def __init__(self, head_dim, attention_dim):
+        super(SelfAttention, self).__init__()
+        self.query = nn.Linear(2048, 2048)
+        self.key = nn.Linear(2048, 2048)
+        self.value = nn.Linear(2048, 2048)
+        self.attention_dim = attention_dim  # Store attention_dim as an instance variable
+
+    def forward(self, x):
+        Q = self.query(x)  # Query
+        K = self.key(x)  # Key
+        V = self.value(x)  # Value
+        attention_scores = torch.matmul(Q, K.transpose(-2, -1)) / torch.sqrt(
+            torch.tensor(self.attention_dim, dtype=torch.float32))
+        attention_weights = F.softmax(attention_scores, dim=-1)
+
+        return torch.matmul(attention_weights, V)
+
 
 class AttBasicModel(BasicModel):
     def __init__(self):
@@ -58,7 +80,8 @@ class AttBasicModel(BasicModel):
         self.logit = nn.Linear(cfg.MODEL.RNN_SIZE, self.vocab_size)
         self.p_att_feats = nn.Linear(self.att_dim, cfg.MODEL.ATT_HIDDEN_SIZE) \
             if cfg.MODEL.ATT_HIDDEN_SIZE > 0 else None
-
+        self.self_attention = SelfAttention(2048, 2048)  # Self-Attention layer
+        self.linear_layer = nn.Linear(in_features=2048, out_features=1024)
         # bilinear
         if cfg.MODEL.BILINEAR.DIM > 0:
             self.p_att_feats = None
@@ -105,8 +128,8 @@ class AttBasicModel(BasicModel):
             #print(gtt_feats.shape)
             #exit(0)
             gtt_feats = self.gtt_feat_embed(gtt_feats)
-            #print(gtt_feats.shape)
-            #exit(0)
+        #print(gtt_feats.shape)
+        #exit(0)
 
         # embed att_feats
         if self.att_embed is not None:
@@ -124,6 +147,25 @@ class AttBasicModel(BasicModel):
             keys, value2s = self.attention.precompute(att_feats, att_feats)
             p_att_feats = torch.cat([keys, value2s], dim=-1)
 
+
+        #att_feats = att_feats * gtt_feats
+        att_feats = torch.cat((gtt_feats, att_feats), dim=2)
+        #print(att_feats.shape)
+        #exit(0)
+        att_feats = self.self_attention(att_feats)
+        att_feats = self.linear_layer(att_feats)
+        #print(gtt_feats.shape)
+
+        '''
+        heatmap_data = torch.mean(att_feats, dim=2).cpu().detach().numpy()
+        plt.figure(figsize=(14, 10))
+        sns.heatmap(heatmap_data, cmap='viridis')
+        plt.title("Heatmap of concatenated geometric feature with region feature averaged over second axis")
+        plt.xlabel("1024 Features")
+        plt.ylabel("Dimension")
+        plt.show()
+        exit(0)
+        '''
         return gv_feat, att_feats, gtt_feats, att_mask, p_att_feats
 
     # gv_feat -- batch_size * cfg.MODEL.GVFEAT_DIM
@@ -333,3 +375,4 @@ class AttBasicModel(BasicModel):
             if unfinished.sum() == 0:
                 break
         return sents, logprobs
+
