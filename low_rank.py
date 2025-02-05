@@ -103,33 +103,6 @@ class LowRank(nn.Module):
         #print(cross_variance.shape)  #10,8,50,128
         #exit(0)
         cross_variance = ((q.unsqueeze(-2) - mean_qk) ** 2 + (k - mean_qk) ** 2) / math.sqrt(k.size(-1))
-
-        #attention_scores = torch.matmul(attn_map, attn_map.transpose(-2, -1)) / math.sqrt(attn_map.size(-1))
-        #attention_weights = self.softmax(attention_scores)
-        #attn_map = torch.matmul(attention_weights, attn_map)  #10,8,128
-        #print(attn_map.shape)
-        #exit(0)
-        #attn_map = self.geo_attention(q,k)
-
-        #class SelfAttention(nn.Module):
-           # def __init__(self, attention_size):
-               # super(SelfAttention, self).__init__()
-               # self.query = nn.Linear(attention_size, attention_size)
-               # self.key = nn.Linear(attention_size, attention_size)
-               # self.value = nn.Linear(attention_size, attention_size)
-               # self.softmax = nn.Softmax(dim=-1)
-
-           # def forward(self, x, y):
-               # Q = self.query(x)
-               # K = self.key(y)
-               # V = self.value(x)
-
-               # attention_scores = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(x.size(-1))
-               # attention_weights = self.softmax(attention_scores)
-               # attention_output = torch.matmul(attention_weights, V)
-
-               # return attention_output
-
         attn = self.attn_net(cross_variance, mask, v1, v2)
         attn = attn.view(batch_size, self.num_heads * self.head_dim)
         return attn
