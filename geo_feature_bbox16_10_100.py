@@ -1,5 +1,5 @@
 ##########################################################
-# Copyright 2019 Oath Inc.
+# Copyright 2025 
 # Licensed under the terms of the MIT license.
 # Please see LICENSE file in the project root for terms.
 ##########################################################
@@ -7,10 +7,10 @@
 Input:
 input_box_dir="/mydisk/Data/captioning_data/up_down_100_box"
 info_filepath="/mydisk/Data/captioning_data/dataset_coco.json"
-img_dir      ="/mydisk/Data/captioning_data/coco"
+img_dir      ="/mydisk/Data/captioning_data/$IMAGE_ROOT"
 
 Output:
-A directory containing all the boxes relative coordinates, as npy files.
+A directory containing all geometry features, as geometricL_features17_10_100.npy files.
 """
 
 import os
@@ -162,7 +162,7 @@ if __name__ == "__main__":
                         help='Root path to prepend to image folder paths')
     parser.add_argument('--input_box_dir', type=str, default='F:\Feature_TOP_DOWN_10_100/up_down_100_box',
                         help='Directory containing the boxes of att feats')
-    parser.add_argument('--output_dir', type=str, default='F:\Feature_TOP_DOWN_10_100/geometricL_features16_10_100',
+    parser.add_argument('--output_dir', type=str, default='F:\Feature_TOP_DOWN_10_100/geometricL_features17_10_100',
                         help='Directory to save the relative coordinates of the bboxes in --input_box_dir')
 
     args = parser.parse_args()
