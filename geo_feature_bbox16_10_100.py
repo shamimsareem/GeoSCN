@@ -3,12 +3,9 @@
 # Licensed under the terms of the MIT license.
 # Please see LICENSE file in the project root for terms.
 ##########################################################
-"""
-Preprocess the absolute bounding box coordinates from --input_box_dir,
-To convert these into relative coordinates, this script loads the corresponding images from coco/val2014/ and coco/train2014/, to get (img_width, img_height)
 
 Input:
-input_box_dir="/mydisk/Data/captioning_data/cocobu_adaptive_box"
+input_box_dir="/mydisk/Data/captioning_data/up_down_100_box"
 info_filepath="/mydisk/Data/captioning_data/dataset_coco.json"
 img_dir      ="/mydisk/Data/captioning_data/coco"
 
