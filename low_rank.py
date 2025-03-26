@@ -2,10 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from lib.config import cfg
-import lib.utils as utils
+import lib.utils_good as utils
 import layers
-import math
-
 
 class LowRank(nn.Module):
     def __init__(self, embed_dim, att_type, att_heads, att_mid_dim, att_mid_drop):
@@ -13,107 +11,39 @@ class LowRank(nn.Module):
         self.embed_dim = embed_dim
         self.num_heads = att_heads
         self.head_dim = embed_dim // self.num_heads
-        self.scaling = self.head_dim ** -0.5
-        #self.geo_attention = SelfAttention(embed_dim, embed_dim)
-        output_dim = 2 * embed_dim if cfg.MODEL.BILINEAR.ACT == 'GLU' else embed_dim
-
-        sequential = []
-        sequential.append(nn.Linear(embed_dim, output_dim))
-        act = utils.activation(cfg.MODEL.BILINEAR.ACT)
-        if act is not None:
-            sequential.append(act)
-        sequential.append(torch.nn.GroupNorm(self.num_heads, embed_dim))
-        self.in_proj_q = nn.Sequential(*sequential)
-
-        sequential = []
-        sequential.append(nn.Linear(embed_dim, output_dim))
-        act = utils.activation(cfg.MODEL.BILINEAR.ACT)
-        if act is not None:
-            sequential.append(act)
-        sequential.append(torch.nn.GroupNorm(self.num_heads, embed_dim))
-        self.in_proj_k = nn.Sequential(*sequential)
-
-        sequential = []
-        sequential.append(nn.Linear(embed_dim, output_dim))
-        act = utils.activation(cfg.MODEL.BILINEAR.ACT)
-        if act is not None:
-            sequential.append(act)
-        sequential.append(torch.nn.GroupNorm(self.num_heads, embed_dim))
-        self.in_proj_v1 = nn.Sequential(*sequential)
-
-        sequential = []
-        sequential.append(nn.Linear(embed_dim, output_dim))
-        act = utils.activation(cfg.MODEL.BILINEAR.ACT)
-        if act is not None:
-            sequential.append(act)
-        sequential.append(torch.nn.GroupNorm(self.num_heads, embed_dim))
-        self.in_proj_v2 = nn.Sequential(*sequential)
-
+        # Linear projections
+        self.q_proj = nn.Linear(embed_dim, embed_dim)
+        self.k_proj = nn.Linear(embed_dim, embed_dim)
+        self.v_proj = nn.Linear(embed_dim, embed_dim)
         self.attn_net = layers.create(att_type, att_mid_dim, att_mid_drop)
-        self.clear_buffer()
-        #self.softmax = nn.Softmax(dim=-1)
 
-    def apply_to_states(self, fn):
-        self.buffer_keys = fn(self.buffer_keys)
-        self.buffer_value2 = fn(self.buffer_value2)
-
-    def init_buffer(self, batch_size):
-        self.buffer_keys = torch.zeros((batch_size, self.num_heads, 0, self.head_dim)).cuda()
-        self.buffer_value2 = torch.zeros((batch_size, self.num_heads, 0, self.head_dim)).cuda()
-
-    def clear_buffer(self):
-        self.buffer_keys = None
-        self.buffer_value2 = None
-
-    # query -- batch_size * qdim
-    # value -- batch_size * att_num * vdim
     def forward(self, query, key, mask, value1, value2, precompute=False):
+        print(query.shape)
+        print(key.shape)
+        print(value1.shape)
+        print(value2.shape)
         batch_size = query.size()[0]
-        q = self.in_proj_q(query)
-        v1 = self.in_proj_v1(value1)
-
-        q = q.view(batch_size, self.num_heads, self.head_dim)
-        v1 = v1.view(batch_size, self.num_heads, self.head_dim)
-
-        if precompute == False:
-            key = key.view(-1, key.size()[-1])
-            value2 = value2.view(-1, value2.size()[-1])
-            k = self.in_proj_k(key)
-            v2 = self.in_proj_v2(value2)
-            k = k.view(batch_size, -1, self.num_heads, self.head_dim).transpose(1, 2)
-            v2 = v2.view(batch_size, -1, self.num_heads, self.head_dim).transpose(1, 2)
-        else:
-            k = key
-            v2 = value2
-        #print(q.shape)
-        #print(k.shape)
-
-        #Q = q
-        #K = k
-        #V = q
-        #attn_map = q.unsqueeze(-2) * k   #10,8,49,128
-
-
-        #attn_map = q.unsqueeze(-2) * k     #torch.Size([10, 8, 49, 128])
-        # Compute element-wise mean between q and k (assuming k is appropriately unsqueezed or reshaped to match q's dimensions)
-        mean_qk = (q.unsqueeze(-2) + k) / 2
-
-        # Compute cross-variance
-        #cross_variance = (q.unsqueeze(-2) - mean_qk) ** 2 + (k - mean_qk) ** 2
-        #print(cross_variance.shape)  #10,8,50,128
-        #exit(0)
-        cross_variance = ((q.unsqueeze(-2) - mean_qk) ** 2 + (k - mean_qk) ** 2) / math.sqrt(k.size(-1))
-        attn = self.attn_net(cross_variance, mask, v1, v2)
+        B, N_kv, _ = key.shape
+        H = self.num_heads
+        D = self.head_dim
+        query = query.unsqueeze(1)
+        Q = self.q_proj(query).view(B, 1, H, D).transpose(1, 2)
+        K = self.k_proj(key).view(B, N_kv, H, D).transpose(1, 2)
+        V = self.v_proj(key).view(B, N_kv, H, D).transpose(1, 2)
+        v1 = value1.view(batch_size, self.num_heads, self.head_dim)
+        v2 = self.v_proj(value2).view(B, N_kv, H, D).transpose(1, 2)
+        scores = torch.matmul(Q, K.transpose(-2, -1)) / (D ** 0.5)
+        attended = torch.matmul(scores, V)
+        attn_map = attended.expand(-1, -1, N_kv, -1)
+        attn = self.attn_net(attn_map, mask, v1, v2)
         attn = attn.view(batch_size, self.num_heads * self.head_dim)
         return attn
 
-    # query -- batch_size * seq_num * qdim
-    # value -- batch_size * att_num * vdim
     def forward2(self, query, key, mask, value1, value2, precompute=False):
         batch_size = query.size()[0]
         query = query.view(-1, query.size()[-1])
         value1 = value1.view(-1, value1.size()[-1])
-        
+
         q = self.in_proj_q(query)
         v1 = self.in_proj_v1(value1)
 
@@ -136,8 +66,25 @@ class LowRank(nn.Module):
         else:
             k = key
             v2 = value2
-        
-        attn_map = q.unsqueeze(-2) * k.unsqueeze(-3)
+
+        #attn_map = q.unsqueeze(-2) * k.unsqueeze(-3)
+        # Assuming q.shape is [batch_size, num_heads, seq_length_q, head_dim]
+        # and k.shape is [batch_size, num_heads, seq_length_k, head_dim]
+        # after unsqueezing
+        # q is unsqueezed to add an extra dimension for seq_length_k
+        # k is unsqueezed to add an extra dimension for seq_length_q
+
+        q_expanded = q.unsqueeze(-2)  # Add dimension for seq_length_k, preparing for broadcasting
+        k_expanded = k.unsqueeze(-3)  # Add dimension for seq_length_q, preparing for broadcasting
+
+        # Compute element-wise mean
+        mean_qk = (q_expanded + k_expanded) / 2
+
+        # Compute cross-variance
+        cross_variance = ((q_expanded - mean_qk) ** 2 + (k_expanded - mean_qk) ** 2)/2
+
+        attn_map = self.dropout(cross_variance)
+
         attn = self.attn_net.forward(attn_map, mask, v1, v2).transpose(1, 2).contiguous()
         attn = attn.view(batch_size, -1, self.num_heads * self.head_dim)
         return attn
