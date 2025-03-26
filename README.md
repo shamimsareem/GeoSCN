@@ -1,1 +1,1 @@
-The whole project will be published soon.
+The whole project will be published soon. The low rank version of loung scoring will be published soon. here I enclosed only linear projected Q,K,V. User can follow the original low-rank file of X-Linear official cite to calculate low rank.
