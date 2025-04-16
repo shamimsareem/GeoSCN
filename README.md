@@ -1,1 +1,1 @@
-The whole project will be published soon. Both GeoSA-1 and GeoSA-2 are in att_basic_model.py and att_basic_model2.py respectively. The low rank files with 2 alternative has been uploaded as low_rank.py 
+The whole project deploy on X-Linear attention. Both GeoSA-1 and GeoSA-2 are in att_basic_model.py and att_basic_model2.py respectively. The low rank files with 2 alternative has been uploaded as low_rank.py. The whole clear files willbe uploaded soon. 
