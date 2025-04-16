@@ -1,1 +1,1 @@
-The whole project will be published soon. The low rank version of loung scoring will be published soon. here I enclosed only linear projected Q,K,V. User can follow the original low-rank file from X-Linear official cite to calculate low rank.
+The whole project will be published soon. Both GeoSA-1 and GeoSA-2 are in att_basic_model.py and att_basic_model2.py respectively. The low rank files with 2 alternative has been uploaded as low_rank.py 
